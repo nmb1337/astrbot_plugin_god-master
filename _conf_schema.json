@@ -1,0 +1,54 @@
+{
+  "enable": {
+    "description": "是否启用插件",
+    "type": "bool",
+    "default": true
+  },
+  "trigger_probability": {
+    "description": "触发概率",
+    "type": "int",
+    "default": 30,
+    "hint": "取值范围 0-100。例如 30 代表大约 100 条消息触发 30 次。",
+    "slider": {"min": 0, "max": 100, "step": 1}
+  },
+  "cooldown_seconds": {
+    "description": "冷却时间(秒)",
+    "type": "int",
+    "default": 60,
+    "hint": "两次表情包发送之间的最小时间间隔。"
+  },
+  "use_whitelist": {
+    "description": "启用群白名单模式",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后，仅白名单中的群会触发表情包。关闭则使用黑名单模式。"
+  },
+  "group_whitelist": {
+    "description": "群白名单",
+    "type": "list",
+    "default": [],
+    "hint": "白名单群号列表，每行一个群号。仅在启用白名单模式时生效。"
+  },
+  "group_blacklist": {
+    "description": "群黑名单",
+    "type": "list",
+    "default": [],
+    "hint": "黑名单群号列表，每行一个群号。白名单模式关闭时生效。"
+  },
+  "category_descriptions": {
+    "description": "表情包分类描述",
+    "type": "text",
+    "default": "{\n  \"开心\": \"开心、高兴、愉快、兴奋、喜悦\",\n  \"生气\": \"愤怒、不爽、骂人、反感、恼火\",\n  \"搞笑\": \"好笑、幽默、有趣、整活、玩梗\",\n  \"震惊\": \"惊讶、难以置信、离谱、震惊\",\n  \"无语\": \"尴尬、沉默、无奈、汗颜\",\n  \"点赞\": \"认可、夸奖、支持、点赞、好评\"\n}",
+    "hint": "JSON 格式。键为分类名（对应 images 子目录名），值为分类描述。AI 会根据描述选择最合适的分类。新增分类后在此添加对应描述即可。",
+    "editor_mode": true,
+    "editor_language": "json"
+  },
+  "ai_prompt_template": {
+    "description": "AI 提示词模板",
+    "type": "text",
+    "default": "你是一个表情包分类助手。请根据群聊消息的内容、情绪和语气，选择最合适的表情包分类。\n\n当前可用的表情包分类：\n{categories}\n\n群聊消息内容：\n\"{message}\"\n\n请仅返回分类名称。如果消息不适合发送任何表情包，请返回\"不发送\"。\n禁止返回解释、额外文字或标点符号。只返回分类名称或\"不发送\"。",
+    "hint": "提示词模板。{categories} 会被替换为分类列表，{message} 会被替换为群聊消息内容。",
+    "editor_mode": true,
+    "editor_language": "plaintext"
+  }
+}

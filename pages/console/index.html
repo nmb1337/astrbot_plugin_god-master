@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI智能表情包 - 管理面板</title>
+    <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <h1>🎭 AI 智能表情包</h1>
+            <p class="subtitle">管理表情包分类描述、AI 提示词模板和图片预览</p>
+        </header>
+
+        <!-- 状态栏 -->
+        <section class="section">
+            <h2>📊 插件状态</h2>
+            <div class="status-grid" id="statusGrid">
+                <div class="status-card">
+                    <span class="status-label">插件状态</span>
+                    <span class="status-value" id="statusEnabled">--</span>
+                </div>
+                <div class="status-card">
+                    <span class="status-label">触发概率</span>
+                    <span class="status-value" id="statusProbability">--</span>
+                </div>
+                <div class="status-card">
+                    <span class="status-label">冷却时间</span>
+                    <span class="status-value" id="statusCooldown">--</span>
+                </div>
+                <div class="status-card">
+                    <span class="status-label">分类数 / 图片数</span>
+                    <span class="status-value" id="statusCounts">--</span>
+                </div>
+            </div>
+            <button class="btn btn-sm" id="btnRefreshStatus">🔄 刷新状态</button>
+        </section>
+
+        <!-- 分类描述管理 -->
+        <section class="section">
+            <h2>📁 表情包分类管理</h2>
+            <p class="hint">编辑每个分类的描述，帮助 AI 更准确地选择表情包。修改后点击"保存分类描述"。</p>
+            <div id="categoryList" class="category-list">
+                <p class="loading">加载中...</p>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-primary" id="btnSaveCategories">💾 保存分类描述</button>
+                <button class="btn" id="btnRescan">🔍 重新扫描图片目录</button>
+            </div>
+            <p class="save-msg" id="categorySaveMsg"></p>
+        </section>
+
+        <!-- 图片预览 -->
+        <section class="section">
+            <h2>🖼️ 图片预览</h2>
+            <p class="hint">点击分类标签查看该分类下的所有表情包图片。</p>
+            <div id="previewTabs" class="preview-tabs">
+                <p class="loading">加载中...</p>
+            </div>
+            <div id="previewContent" class="preview-content">
+                <p class="loading">请选择分类查看图片</p>
+            </div>
+        </section>
+
+        <!-- AI 提示词模板 -->
+        <section class="section">
+            <h2>🤖 AI 提示词模板</h2>
+            <p class="hint">
+                修改 AI 分类提示词。<code>{categories}</code> 会被替换为分类列表，<code>{message}</code> 会被替换为群聊消息。
+            </p>
+            <textarea id="promptTemplate" rows="12" class="prompt-area"></textarea>
+            <div class="btn-row">
+                <button class="btn btn-primary" id="btnSavePrompt">💾 保存提示词</button>
+            </div>
+            <p class="save-msg" id="promptSaveMsg"></p>
+        </section>
+
+        <!-- 底部 -->
+        <footer class="footer">
+            <p>AI智能表情包 v1.0.0 | 基于 AstrBot 框架</p>
+        </footer>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+</body>
+</html>

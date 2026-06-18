@@ -1,0 +1,8 @@
+name: astrbot_plugin_ai_sticker
+display_name: AI智能表情包
+short_desc: 群聊语义表情包智能推送，AI自动分析聊天内容发送最合适的表情包
+desc: 基于大模型的群聊语义表情包智能推送插件。机器人自动分析群聊消息内容、情绪和语气，调用AI判断最适合的表情包分类并随机发送对应图片。支持自定义表情包分类、WebUI配置管理、群黑白名单、触发概率和冷却时间。
+version: v1.0.0
+author: AstrBot Community
+repo: https://github.com/user/astrbot_plugin_ai_sticker
+astrbot_version: ">=4.16,<5"
