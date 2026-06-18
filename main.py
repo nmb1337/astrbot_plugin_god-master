@@ -488,8 +488,8 @@ class AIStickerPlugin(Star):
         })
 
     async def _api_preview_image(self, category: str, filename: str):
-        """返回图片文件（用于前端预览）"""
-        from astrbot.api.web import file_response
+        """返回图片的 base64 编码数据（用于前端预览）"""
+        import base64
 
         # 安全检查：防止路径遍历攻击
         if ".." in filename or "/" in filename or "\\" in filename:
@@ -508,7 +508,12 @@ class AIStickerPlugin(Star):
         if img_path is None or not img_path.exists():
             return error_response("图片不存在", status_code=404)
 
-        # 根据后缀确定 content_type
+        # 限制预览图片大小（最大 5MB）
+        file_size = img_path.stat().st_size
+        if file_size > 5 * 1024 * 1024:
+            return error_response("图片过大，无法预览（超过5MB）", status_code=400)
+
+        # 根据后缀确定 MIME 类型
         ext = img_path.suffix.lower()
         content_types = {
             ".png": "image/png",
@@ -517,13 +522,22 @@ class AIStickerPlugin(Star):
             ".gif": "image/gif",
             ".webp": "image/webp",
         }
-        content_type = content_types.get(ext, "application/octet-stream")
+        mime_type = content_types.get(ext, "application/octet-stream")
 
-        return file_response(
-            str(img_path),
-            filename=filename,
-            content_type=content_type,
-        )
+        # 读取图片并 base64 编码
+        try:
+            with open(img_path, "rb") as f:
+                img_data = f.read()
+            b64_data = base64.b64encode(img_data).decode("ascii")
+        except Exception as e:
+            logger.error(f"[AI表情包] 读取图片失败: {e}")
+            return error_response(f"读取图片失败: {e}", status_code=500)
+
+        return json_response({
+            "filename": filename,
+            "content_type": mime_type,
+            "base64": b64_data,
+        })
 
     async def _api_rescan(self):
         """重新扫描图片目录"""

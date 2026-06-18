@@ -191,6 +191,7 @@ function renderPreviewTabs() {
 async function loadPreview(category) {
     const container = $("previewContent");
     currentPreviewCategory = category;
+    container.innerHTML = '<p class="loading">加载中...</p>';
 
     try {
         const data = await apiGet("images/" + encodeURIComponent(category));
@@ -201,14 +202,14 @@ async function loadPreview(category) {
             return;
         }
 
-        // 构建图片预览 URL（通过后端 API 获取）
+        // 构建占位结构（图片稍后逐个加载）
         container.innerHTML = images
             .map((imgName) => {
-                const previewUrl = `image/preview/${encodeURIComponent(category)}/${encodeURIComponent(imgName)}`;
+                const endpoint = `image/preview/${encodeURIComponent(category)}/${encodeURIComponent(imgName)}`;
                 return `
                 <div class="preview-img-item">
                     <div class="preview-img-wrapper">
-                        <img src="" data-src="${previewUrl}" alt="${escapeHtml(imgName)}" loading="lazy" />
+                        <img src="" data-endpoint="${escapeHtml(endpoint)}" alt="${escapeHtml(imgName)}" loading="lazy" />
                     </div>
                     <div class="preview-img-name">${escapeHtml(imgName)}</div>
                 </div>
@@ -216,7 +217,7 @@ async function loadPreview(category) {
             })
             .join("");
 
-        // 延迟加载图片（通过 bridge API 获取真实 URL）
+        // 逐个加载图片（base64 方式）
         loadPreviewImages();
     } catch (e) {
         console.error("加载图片预览失败:", e);
@@ -225,42 +226,29 @@ async function loadPreview(category) {
 }
 
 async function loadPreviewImages() {
-    const imgElements = document.querySelectorAll(".preview-img-wrapper img[data-src]");
+    const imgElements = document.querySelectorAll(".preview-img-wrapper img[data-endpoint]");
     for (const img of imgElements) {
-        const endpoint = img.dataset.src;
+        const endpoint = img.dataset.endpoint;
         if (!endpoint) continue;
         try {
-            // 使用 apiGet 获取图片的二进制数据
-            // 对于图片预览，我们直接使用 img src 指向 bridge 端点
-            // bridge 会自动处理认证
-            const result = await bridge.apiGet(endpoint);
-            // 如果返回的是 blob URL 或其他格式，这里处理
-            // 由于 bridge API 返回 JSON，图片预览可能需要用不同的方式
-            // 这里使用直接请求的方式
-            img.src = await getImageUrl(endpoint);
+            // 通过 bridge 调用后端 API，获取 base64 图片数据
+            const result = await apiGet(endpoint);
+            if (result && result.base64 && result.content_type) {
+                img.src = `data:${result.content_type};base64,${result.base64}`;
+            } else {
+                throw new Error("API 返回数据格式不正确");
+            }
         } catch (e) {
             console.error("加载图片失败:", endpoint, e);
             img.alt = "加载失败";
+            // 显示占位提示
+            img.style.display = "none";
+            const wrapper = img.closest(".preview-img-wrapper");
+            if (wrapper) {
+                wrapper.textContent = "❌";
+                wrapper.style.fontSize = "2rem";
+            }
         }
-    }
-}
-
-async function getImageUrl(endpoint) {
-    // 通过 bridge 下载图片并创建 object URL
-    try {
-        const result = await bridge.download(endpoint, {}, null);
-        // download 返回 { filename: "..." }
-        // 但我们需要实际的图片数据，这里尝试另一种方式
-        // 直接用 fetch 访问 bridge 构建的完整 URL
-        // 由于 bridge 的限制，我们使用 apiGet 方式
-        const baseUrl = window.location.origin;
-        const pluginName = "astrbot_plugin_ai_sticker";
-        // 构造完整的 API URL
-        const fullUrl = `${baseUrl}/api/v1/plugins/extensions/${pluginName}/${endpoint}`;
-        return fullUrl;
-    } catch (e) {
-        console.error("获取图片 URL 失败:", e);
-        return "";
     }
 }
 
