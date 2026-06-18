@@ -133,7 +133,7 @@ flowchart TD
 
 ## 🔧 兼容性
 
-- **AstrBot 版本**：≥ v4.16
+- **AstrBot 版本**：≥ v4.16（含 v4.25.5）
 - **平台**：Windows / Linux / Docker
 - **消息平台**：所有 AstrBot 支持的消息平台（QQ、Telegram、微信、飞书、钉钉等）
 

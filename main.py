@@ -8,7 +8,7 @@ AI智能表情包 - AstrBot 插件
 - 支持群黑白名单、触发概率、冷却时间
 - 支持 WebUI 配置管理
 
-兼容：AstrBot v4.16+
+兼容：AstrBot v4.16+（含 v4.25.5）
 """
 
 import json
@@ -19,7 +19,32 @@ from pathlib import Path
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
-from astrbot.api.web import json_response, error_response, request
+
+# ---- Web API 兼容层（兼容 AstrBot v4.25.x 及更早版本） ----
+# 新版 AstrBot 提供 astrbot.api.web，旧版使用 Quart 原生 API。
+try:
+    from astrbot.api.web import json_response, error_response, request
+    # request.json(default=) 是 astrbot.api.web 特有方法
+    _HAS_ASTRBOT_WEB = True
+except ImportError:
+    from quart import jsonify, request
+
+    _HAS_ASTRBOT_WEB = False
+
+    def json_response(data):
+        return jsonify(data)
+
+    def error_response(message, status_code=400):
+        return jsonify({"status": "error", "message": message}), status_code
+
+
+async def _get_json_body(default=None):
+    """跨版本获取 JSON 请求体"""
+    if _HAS_ASTRBOT_WEB:
+        return await request.json(default=default)
+    else:
+        data = await request.get_json(silent=True)
+        return data if data is not None else default
 
 # ---------------------------------------------------------------------------
 # 插件注册
@@ -457,7 +482,7 @@ class AIStickerPlugin(Star):
 
     async def _api_save_categories(self):
         """保存分类描述到配置"""
-        payload = await request.json(default={})
+        payload = await _get_json_body(default={})
         new_descriptions = payload.get("descriptions", {})
         if not isinstance(new_descriptions, dict):
             return error_response("descriptions 必须是字典格式", status_code=400)
@@ -556,7 +581,7 @@ class AIStickerPlugin(Star):
 
     async def _api_save_prompt(self):
         """保存 AI 提示词模板到配置"""
-        payload = await request.json(default={})
+        payload = await _get_json_body(default={})
         new_prompt = payload.get("prompt_template", "")
         if not isinstance(new_prompt, str):
             return error_response("prompt_template 必须是字符串", status_code=400)
