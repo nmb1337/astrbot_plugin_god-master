@@ -2,9 +2,9 @@
 AI智能表情包 - AstrBot 插件
 
 功能：
-- 监听群聊消息，自动分析聊天内容
+- 在机器人回复群聊时，自动分析自身回复的语气和情绪
 - 调用大模型判断最合适的表情包分类
-- 从对应分类目录随机选择图片发送
+- 从对应分类目录随机选择图片追加到回复末尾
 - 支持群黑白名单、触发概率、冷却时间
 - 支持 WebUI 配置管理
 
@@ -31,7 +31,7 @@ PLUGIN_NAME = "astrbot_plugin_ai_sticker"
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
-@register(PLUGIN_NAME, "AstrBot Community", "AI智能表情包：根据群聊语义自动发送表情包", "1.0.0")
+@register(PLUGIN_NAME, "AstrBot Community", "AI智能表情包：机器人回复时根据自身语气自动搭配表情包", "1.0.0")
 class AIStickerPlugin(Star):
     """AI 智能表情包插件"""
 
@@ -123,10 +123,10 @@ class AIStickerPlugin(Star):
         """获取 AI 提示词模板"""
         return self.config.get(
             "ai_prompt_template",
-            "你是一个表情包分类助手。请根据群聊消息的内容、情绪和语气，选择最合适的表情包分类。\n\n"
+            "你是一个表情包分类助手。请根据机器人回复消息的语气和情绪，选择最合适的表情包分类。\n\n"
             "当前可用的表情包分类：\n{categories}\n\n"
-            "群聊消息内容：\n\"{message}\"\n\n"
-            "请仅返回分类名称。如果消息不适合发送任何表情包，请返回\"不发送\"。\n"
+            "机器人的回复内容：\n\"{message}\"\n\n"
+            "请仅返回分类名称。如果该回复不适合搭配表情包，请返回\"不发送\"。\n"
             "禁止返回解释、额外文字或标点符号。只返回分类名称或\"不发送\"。",
         )
 
@@ -277,22 +277,20 @@ class AIStickerPlugin(Star):
         return random.choice(images)
 
     # ------------------------------------------------------------------
-    # 消息监听器
+    # 表情包追加钩子（机器人回复时根据自身语气自动配图）
     # ------------------------------------------------------------------
 
-    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
-    async def on_group_message(self, event: AstrMessageEvent):
-        """监听所有群聊消息，自动分析并发送表情包"""
+    @filter.on_decorating_result()
+    async def on_decorating_result(self, event: AstrMessageEvent):
+        """在机器人发送回复前，分析自身回复的语气并追加对应表情包"""
 
-        # 1. 检查是否启用
-        if not self._is_enabled():
+        # 1. 仅处理群聊消息
+        group_id = event.message_obj.group_id
+        if not group_id:
             return
 
-        # 2. 获取群号和消息内容
-        group_id = event.message_obj.group_id
-        message_str = event.message_str.strip()
-
-        if not message_str:
+        # 2. 检查是否启用
+        if not self._is_enabled():
             return
 
         # 3. 群管理检查
@@ -307,30 +305,40 @@ class AIStickerPlugin(Star):
         if not self._check_probability():
             return
 
-        # 6. AI 分类
-        category = await self._classify_message(message_str, event)
+        # 6. 提取机器人即将发送的文本内容
+        result = event.get_result()
+        chain = result.chain
+        reply_text = ""
+        for comp in chain:
+            if hasattr(comp, "text") and comp.text:
+                reply_text += comp.text
+        reply_text = reply_text.strip()
+        if not reply_text:
+            return
+
+        # 7. AI 分类（分析机器人自身的回复语气）
+        category = await self._classify_message(reply_text, event)
         if category is None:
             return
 
-        # 7. 随机选择图片
+        # 8. 随机选择图片
         img_path = self._pick_random_image(category)
         if img_path is None:
             return
 
-        # 8. 更新冷却时间
+        # 9. 更新冷却时间
         self._update_cooldown(group_id)
 
-        # 9. 发送图片
+        # 10. 将表情包图片追加到消息链末尾
         try:
             import astrbot.api.message_components as Comp
 
-            chain = [Comp.Image.fromFileSystem(str(img_path))]
-            yield event.chain_result(chain)
+            chain.append(Comp.Image.fromFileSystem(str(img_path)))
             logger.info(
-                f"[AI表情包] 群 {group_id} 发送「{category}」表情: {img_path.name}"
+                f"[AI表情包] 群 {group_id} 追加「{category}」表情: {img_path.name}"
             )
         except Exception as e:
-            logger.error(f"[AI表情包] 发送图片失败: {e}")
+            logger.error(f"[AI表情包] 追加图片失败: {e}")
 
     # ------------------------------------------------------------------
     # 管理指令：重载图片
