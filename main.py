@@ -23,11 +23,11 @@ from astrbot.api import logger, AstrBotConfig
 # ---- Web API 兼容层（兼容 AstrBot v4.25.x 及更早版本） ----
 # 新版 AstrBot 提供 astrbot.api.web，旧版使用 Quart 原生 API。
 try:
-    from astrbot.api.web import json_response, error_response, request
+    from astrbot.api.web import json_response, error_response, request, file_response
     # request.json(default=) 是 astrbot.api.web 特有方法
     _HAS_ASTRBOT_WEB = True
 except ImportError:
-    from quart import jsonify, request
+    from quart import jsonify, request, Response
 
     _HAS_ASTRBOT_WEB = False
 
@@ -36,6 +36,12 @@ except ImportError:
 
     def error_response(message, status_code=400):
         return jsonify({"status": "error", "message": message}), status_code
+
+    def file_response(path, filename="", content_type="application/octet-stream"):
+        """Quart 版文件响应：直接读取文件二进制返回"""
+        with open(path, "rb") as f:
+            data = f.read()
+        return Response(data, mimetype=content_type)
 
 
 async def _get_json_body(default=None):
@@ -513,8 +519,7 @@ class AIStickerPlugin(Star):
         })
 
     async def _api_preview_image(self, category: str, filename: str):
-        """返回图片的 base64 编码数据（用于前端预览）"""
-        import base64
+        """直接返回图片二进制数据（供 <img> 标签加载）"""
 
         # 安全检查：防止路径遍历攻击
         if ".." in filename or "/" in filename or "\\" in filename:
@@ -533,11 +538,6 @@ class AIStickerPlugin(Star):
         if img_path is None or not img_path.exists():
             return error_response("图片不存在", status_code=404)
 
-        # 限制预览图片大小（最大 5MB）
-        file_size = img_path.stat().st_size
-        if file_size > 5 * 1024 * 1024:
-            return error_response("图片过大，无法预览（超过5MB）", status_code=400)
-
         # 根据后缀确定 MIME 类型
         ext = img_path.suffix.lower()
         content_types = {
@@ -549,20 +549,12 @@ class AIStickerPlugin(Star):
         }
         mime_type = content_types.get(ext, "application/octet-stream")
 
-        # 读取图片并 base64 编码
-        try:
-            with open(img_path, "rb") as f:
-                img_data = f.read()
-            b64_data = base64.b64encode(img_data).decode("ascii")
-        except Exception as e:
-            logger.error(f"[AI表情包] 读取图片失败: {e}")
-            return error_response(f"读取图片失败: {e}", status_code=500)
-
-        return json_response({
-            "filename": filename,
-            "content_type": mime_type,
-            "base64": b64_data,
-        })
+        # 直接返回图片二进制（浏览器 <img> 标签自带 cookie 鉴权）
+        return file_response(
+            str(img_path),
+            filename=filename,
+            content_type=mime_type,
+        )
 
     async def _api_rescan(self):
         """重新扫描图片目录"""

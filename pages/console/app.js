@@ -202,53 +202,25 @@ async function loadPreview(category) {
             return;
         }
 
-        // 构建占位结构（图片稍后逐个加载）
+        // 直接用 <img> 标签指向后端图片 API（同源请求自带 cookie 鉴权）
         container.innerHTML = images
             .map((imgName) => {
-                const endpoint = `image/preview/${encodeURIComponent(category)}/${encodeURIComponent(imgName)}`;
+                // 构造 Dashboard API 路径：桥接会自动转发到插件后端
+                const imgUrl = `/api/v1/plugins/extensions/astrbot_plugin_ai_sticker/image/preview/${encodeURIComponent(category)}/${encodeURIComponent(imgName)}`;
                 return `
                 <div class="preview-img-item">
                     <div class="preview-img-wrapper">
-                        <img src="" data-endpoint="${escapeHtml(endpoint)}" alt="${escapeHtml(imgName)}" loading="lazy" />
+                        <img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(imgName)}" loading="lazy"
+                             onerror="this.parentElement.textContent='❌';this.parentElement.style.fontSize='2rem'" />
                     </div>
                     <div class="preview-img-name">${escapeHtml(imgName)}</div>
                 </div>
             `;
             })
             .join("");
-
-        // 逐个加载图片（base64 方式）
-        loadPreviewImages();
     } catch (e) {
-        console.error("加载图片预览失败:", e);
+        console.error("加载图片列表失败:", e);
         container.innerHTML = '<p class="loading" style="color:var(--danger)">加载失败</p>';
-    }
-}
-
-async function loadPreviewImages() {
-    const imgElements = document.querySelectorAll(".preview-img-wrapper img[data-endpoint]");
-    for (const img of imgElements) {
-        const endpoint = img.dataset.endpoint;
-        if (!endpoint) continue;
-        try {
-            // 通过 bridge 调用后端 API，获取 base64 图片数据
-            const result = await apiGet(endpoint);
-            if (result && result.base64 && result.content_type) {
-                img.src = `data:${result.content_type};base64,${result.base64}`;
-            } else {
-                throw new Error("API 返回数据格式不正确");
-            }
-        } catch (e) {
-            console.error("加载图片失败:", endpoint, e);
-            img.alt = "加载失败";
-            // 显示占位提示
-            img.style.display = "none";
-            const wrapper = img.closest(".preview-img-wrapper");
-            if (wrapper) {
-                wrapper.textContent = "❌";
-                wrapper.style.fontSize = "2rem";
-            }
-        }
     }
 }
 
