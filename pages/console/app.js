@@ -191,35 +191,62 @@ function renderPreviewTabs() {
 async function loadPreview(category) {
     const container = $("previewContent");
     currentPreviewCategory = category;
+    container.innerHTML = '<p class="loading">加载中...</p>';
 
-    // 直接从已加载的 categoriesData 中查找（无需额外 API 调用）
+    // 直接从 categoriesData 获取图片文件名列表
     const catData = categoriesData.find((c) => c.name === category);
     if (!catData) {
         container.innerHTML = '<p class="loading" style="color:var(--danger)">分类数据未找到</p>';
         return;
     }
 
-    const images = catData.images || [];
-    if (images.length === 0) {
+    const imageNames = catData.images || [];
+    if (imageNames.length === 0) {
         container.innerHTML = '<p class="loading">该分类下暂无图片</p>';
         return;
     }
 
-    // 直接用 <img> 标签指向后端图片 API（同源请求自带 cookie 鉴权）
-    container.innerHTML = images
-        .map((imgName) => {
-            const imgUrl = `/api/v1/plugins/extensions/astrbot_plugin_ai_sticker/image/preview/${encodeURIComponent(category)}/${encodeURIComponent(imgName)}`;
-            return `
-                <div class="preview-img-item">
-                    <div class="preview-img-wrapper">
-                        <img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(imgName)}" loading="lazy"
-                             onerror="this.parentElement.textContent='❌';this.parentElement.style.fontSize='2rem'" />
+    // 通过 bridge 批量获取 base64 图片数据
+    try {
+        const batchData = await apiGet("image/preview-batch/" + encodeURIComponent(category));
+        const images = batchData.images || [];
+
+        // 建立文件名 → base64 数据的映射
+        const dataMap = {};
+        images.forEach((img) => {
+            dataMap[img.filename] = img;
+        });
+
+        container.innerHTML = imageNames
+            .map((imgName) => {
+                const imgData = dataMap[imgName];
+                if (imgData && imgData.base64) {
+                    const src = `data:${imgData.content_type};base64,${imgData.base64}`;
+                    return `
+                    <div class="preview-img-item">
+                        <div class="preview-img-wrapper">
+                            <img src="${src}" alt="${escapeHtml(imgName)}" loading="lazy" />
+                        </div>
+                        <div class="preview-img-name">${escapeHtml(imgName)}</div>
                     </div>
-                    <div class="preview-img-name">${escapeHtml(imgName)}</div>
-                </div>
-            `;
-        })
-        .join("");
+                `;
+                } else {
+                    const errMsg = imgData ? (imgData.error || "无数据") : "未找到";
+                    return `
+                    <div class="preview-img-item">
+                        <div class="preview-img-wrapper" style="color:var(--danger);font-size:0.75rem;text-align:center;display:flex;align-items:center;justify-content:center;">
+                            ❌<br/>${escapeHtml(errMsg)}
+                        </div>
+                        <div class="preview-img-name">${escapeHtml(imgName)}</div>
+                    </div>
+                `;
+                }
+            })
+            .join("");
+    } catch (e) {
+        console.error("批量加载图片失败:", e);
+        container.innerHTML = '<p class="loading" style="color:var(--danger)">加载失败: ' + escapeHtml(e.message || String(e)) + '</p>';
+    }
 }
 
 // ---- AI 提示词模板 ----

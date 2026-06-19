@@ -424,12 +424,20 @@ class AIStickerPlugin(Star):
             "获取分类下的图片信息",
         )
 
-        # 获取单张图片（用于预览）
+        # 获取单张图片 base64（用于预览-已废弃，请用 batch 接口）
         self.context.register_web_api(
             f"/{PLUGIN_NAME}/image/preview/<category>/<filename>",
             self._api_preview_image,
             ["GET"],
-            "获取图片预览",
+            "获取单张图片预览(base64)",
+        )
+
+        # 批量获取某分类下所有图片的 base64 数据
+        self.context.register_web_api(
+            f"/{PLUGIN_NAME}/image/preview-batch/<category>",
+            self._api_preview_batch,
+            ["GET"],
+            "批量获取分类图片预览(base64)",
         )
 
         # 重新扫描图片目录
@@ -519,16 +527,86 @@ class AIStickerPlugin(Star):
         })
 
     async def _api_preview_image(self, category: str, filename: str):
-        """直接返回图片二进制数据（供 <img> 标签加载）"""
+        """返回单张图片的 base64 编码（供 bridge 调用）"""
+        import base64
 
-        # 安全检查：防止路径遍历攻击
-        if ".." in filename or "/" in filename or "\\" in filename:
-            return error_response("非法文件名", status_code=400)
+        result = self._find_preview_image(category, filename)
+        if isinstance(result, tuple):  # 错误响应
+            return result
+
+        img_path, mime_type = result
+        try:
+            with open(img_path, "rb") as f:
+                img_data = f.read()
+            b64_data = base64.b64encode(img_data).decode("ascii")
+        except Exception as e:
+            logger.error(f"[AI表情包] 读取图片失败: {e}")
+            return error_response(f"读取图片失败: {e}", status_code=500)
+
+        return json_response({
+            "filename": filename,
+            "content_type": mime_type,
+            "base64": b64_data,
+        })
+
+    async def _api_preview_batch(self, category: str):
+        """批量返回某分类下所有图片的 base64 编码"""
+        import base64
 
         if category not in self.category_images:
             return error_response(f"分类「{category}」不存在", status_code=404)
 
-        # 在图片列表中查找匹配文件
+        images = self.category_images[category]
+        results = []
+        for img_path in images:
+            ext = img_path.suffix.lower()
+            content_types = {
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".gif": "image/gif",
+                ".webp": "image/webp",
+            }
+            mime_type = content_types.get(ext, "application/octet-stream")
+
+            try:
+                # 跳过超大图片（>2MB）
+                if img_path.stat().st_size > 2 * 1024 * 1024:
+                    results.append({
+                        "filename": img_path.name,
+                        "content_type": mime_type,
+                        "base64": None,
+                        "error": "图片过大(>2MB)",
+                    })
+                    continue
+
+                with open(img_path, "rb") as f:
+                    img_data = f.read()
+                b64_data = base64.b64encode(img_data).decode("ascii")
+                results.append({
+                    "filename": img_path.name,
+                    "content_type": mime_type,
+                    "base64": b64_data,
+                })
+            except Exception as e:
+                logger.error(f"[AI表情包] 读取图片失败 {img_path}: {e}")
+                results.append({
+                    "filename": img_path.name,
+                    "content_type": mime_type,
+                    "base64": None,
+                    "error": str(e),
+                })
+
+        return json_response({"category": category, "images": results})
+
+    def _find_preview_image(self, category: str, filename: str):
+        """查找图片文件，返回 (path, mime_type) 或 (error_response)"""
+        if ".." in filename or "/" in filename or "\\" in filename:
+            return error_response("非法文件名", status_code=400), None
+
+        if category not in self.category_images:
+            return error_response(f"分类「{category}」不存在", status_code=404), None
+
         img_path = None
         for img in self.category_images[category]:
             if img.name == filename:
@@ -536,9 +614,8 @@ class AIStickerPlugin(Star):
                 break
 
         if img_path is None or not img_path.exists():
-            return error_response("图片不存在", status_code=404)
+            return error_response("图片不存在", status_code=404), None
 
-        # 根据后缀确定 MIME 类型
         ext = img_path.suffix.lower()
         content_types = {
             ".png": "image/png",
@@ -549,12 +626,7 @@ class AIStickerPlugin(Star):
         }
         mime_type = content_types.get(ext, "application/octet-stream")
 
-        # 直接返回图片二进制（浏览器 <img> 标签自带 cookie 鉴权）
-        return file_response(
-            str(img_path),
-            filename=filename,
-            content_type=mime_type,
-        )
+        return img_path, mime_type
 
     async def _api_rescan(self):
         """重新扫描图片目录"""
