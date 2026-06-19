@@ -208,7 +208,7 @@ async function loadPreview(category) {
 
     // 通过 bridge 批量获取 base64 图片数据
     try {
-        const batchData = await apiGet("image/preview-batch/" + encodeURIComponent(category));
+        const batchData = await apiGet("image/batch", { category: category });
         const images = batchData.images || [];
 
         // 建立文件名 → base64 数据的映射

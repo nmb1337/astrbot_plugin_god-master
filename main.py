@@ -424,7 +424,7 @@ class AIStickerPlugin(Star):
             "获取分类下的图片信息",
         )
 
-        # 获取单张图片 base64（用于预览-已废弃，请用 batch 接口）
+        # 获取单张图片 base64
         self.context.register_web_api(
             f"/{PLUGIN_NAME}/image/preview/<category>/<filename>",
             self._api_preview_image,
@@ -434,10 +434,10 @@ class AIStickerPlugin(Star):
 
         # 批量获取某分类下所有图片的 base64 数据
         self.context.register_web_api(
-            f"/{PLUGIN_NAME}/image/preview-batch/<category>",
+            f"/{PLUGIN_NAME}/image/batch",
             self._api_preview_batch,
             ["GET"],
-            "批量获取分类图片预览(base64)",
+            "批量获取分类图片预览(base64)，query: category",
         )
 
         # 重新扫描图片目录
@@ -549,9 +549,18 @@ class AIStickerPlugin(Star):
             "base64": b64_data,
         })
 
-    async def _api_preview_batch(self, category: str):
-        """批量返回某分类下所有图片的 base64 编码"""
+    async def _api_preview_batch(self):
+        """批量返回某分类下所有图片的 base64 编码（category 通过 query 传入）"""
         import base64
+
+        # 跨版本读取 query 参数
+        if _HAS_ASTRBOT_WEB:
+            category = request.query.get("category", "").strip()
+        else:
+            category = request.args.get("category", "").strip()
+
+        if not category:
+            return error_response("缺少 category 参数", status_code=400)
 
         if category not in self.category_images:
             return error_response(f"分类「{category}」不存在", status_code=404)
