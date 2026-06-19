@@ -191,23 +191,25 @@ function renderPreviewTabs() {
 async function loadPreview(category) {
     const container = $("previewContent");
     currentPreviewCategory = category;
-    container.innerHTML = '<p class="loading">加载中...</p>';
 
-    try {
-        const data = await apiGet("images/" + encodeURIComponent(category));
-        const images = data.images || [];
+    // 直接从已加载的 categoriesData 中查找（无需额外 API 调用）
+    const catData = categoriesData.find((c) => c.name === category);
+    if (!catData) {
+        container.innerHTML = '<p class="loading" style="color:var(--danger)">分类数据未找到</p>';
+        return;
+    }
 
-        if (images.length === 0) {
-            container.innerHTML = '<p class="loading">该分类下暂无图片</p>';
-            return;
-        }
+    const images = catData.images || [];
+    if (images.length === 0) {
+        container.innerHTML = '<p class="loading">该分类下暂无图片</p>';
+        return;
+    }
 
-        // 直接用 <img> 标签指向后端图片 API（同源请求自带 cookie 鉴权）
-        container.innerHTML = images
-            .map((imgName) => {
-                // 构造 Dashboard API 路径：桥接会自动转发到插件后端
-                const imgUrl = `/api/v1/plugins/extensions/astrbot_plugin_ai_sticker/image/preview/${encodeURIComponent(category)}/${encodeURIComponent(imgName)}`;
-                return `
+    // 直接用 <img> 标签指向后端图片 API（同源请求自带 cookie 鉴权）
+    container.innerHTML = images
+        .map((imgName) => {
+            const imgUrl = `/api/v1/plugins/extensions/astrbot_plugin_ai_sticker/image/preview/${encodeURIComponent(category)}/${encodeURIComponent(imgName)}`;
+            return `
                 <div class="preview-img-item">
                     <div class="preview-img-wrapper">
                         <img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(imgName)}" loading="lazy"
@@ -216,12 +218,8 @@ async function loadPreview(category) {
                     <div class="preview-img-name">${escapeHtml(imgName)}</div>
                 </div>
             `;
-            })
-            .join("");
-    } catch (e) {
-        console.error("加载图片列表失败:", e);
-        container.innerHTML = '<p class="loading" style="color:var(--danger)">加载失败</p>';
-    }
+        })
+        .join("");
 }
 
 // ---- AI 提示词模板 ----
